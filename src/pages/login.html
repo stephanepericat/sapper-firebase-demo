@@ -1,0 +1,113 @@
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>Login Page</title>
+
+  <script src="https://www.gstatic.com/firebasejs/7.2.3/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/7.2.3/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/ui/4.2.0/firebase-ui-auth.js"></script>
+
+  <link rel="stylesheet" href="/global.css">
+  <link type="text/css" rel="stylesheet" href="https://www.gstatic.com/firebasejs/ui/4.2.0/firebase-ui-auth.css" />
+</head>
+<body>
+  <div id="container">
+    <div id="loading">Loading...</div>
+    <div id="redirecting" class="hidden">Redirecting...</div>
+    <div id="firebaseui-container"></div>
+  </div>
+
+  <script src="/init.js"></script>
+  <script>
+    function getCookie(name) {
+      var v = document.cookie.match('(^|;) ?' + name + '=([^;]*)(;|$)');
+      return v ? v[2] : null;
+    }
+
+    function getUiConfig() {
+      // This configuration supports email/password and Google providers.
+      return {
+        'callbacks': {
+          // Called when the user has been successfully signed in.
+          'signInSuccess': function (user, credential, redirectUrl) {
+            // Handle signed in user.
+            handleSignedInUser(user);
+            // Do not automatically redirect.
+            return false;
+          },
+          'uiShown': function () {
+            // Remove progress bar when the UI is ready.
+            document.getElementById('loading').classList.add('hidden');
+          }
+        },
+        'signInFlow': 'popup',
+        'signInOptions': [
+          {
+            provider: firebase.auth.GoogleAuthProvider.PROVIDER_ID
+          },
+          // {
+          //   provider: firebase.auth.EmailAuthProvider.PROVIDER_ID,
+          //   // Whether the display name should be displayed in Sign Up page.
+          //   requireDisplayName: true
+          // }
+        ],
+        // Terms of service url.
+        'tosUrl': 'https://www.google.com',
+        'credentialHelper': firebaseui.auth.CredentialHelper.NONE
+      };
+    }
+
+    var handleSignedInUser = function (user) {
+      // Show redirection notice.
+      document.getElementById('redirecting').classList.remove('hidden');
+      // Set session cookie
+      user.getIdToken().then(function (idToken) {
+        // Session login endpoint is queried and the session cookie is set.
+        // CSRF token should be sent along with request.
+        var csrfToken = getCookie('csrfToken');
+
+        return postIdTokenToSessionLogin('/sessionLogin', idToken, csrfToken)
+          .then(function(res) {
+            return res.json();
+          })
+          .then(function (data) {
+            console.log("DATA >>>>", data);
+            // Redirect to profile on success.
+            window.location.assign('/profile');
+          }, function (error) {
+            // Refresh page on error.
+            // In all cases, client side state should be lost due to in-memory
+            // persistence.
+            console.log("ERROR", error);
+            window.location.assign('/login');
+          });
+      });
+    };
+
+    var postIdTokenToSessionLogin = function (url, idToken, csrfToken) {
+      // POST to session login endpoint.
+      return fetch(url, {
+        method: 'POST',
+        body: JSON.stringify({ idToken: idToken, csrfToken: csrfToken }),
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+    };
+
+    function initApp() {
+      var ui = new firebaseui.auth.AuthUI(firebase.auth());
+      ui.start('#firebaseui-container', getUiConfig());
+    }
+
+    // Set persistence to none.
+    firebase.auth().setPersistence(firebase.auth.Auth.Persistence.NONE);
+
+    window.onload = function() {
+      initApp();
+    }
+  </script>
+</body>
+</html>
